@@ -1,0 +1,48 @@
+{
+  "name": "tokens-wrapped",
+  "version": "0.2.0",
+  "description": "Your year in AI from your own OpenAI and Anthropic reports: spend, tokens, cache hits, Claude Code. Keys never leave your computer.",
+  "type": "module",
+  "bin": {
+    "tokens-wrapped": "bin/tokens-wrapped.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.3"
+  },
+  "scripts": {
+    "test": "node --test",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "keywords": [
+    "openai",
+    "anthropic",
+    "claude-code",
+    "tokens",
+    "costs",
+    "usage",
+    "year-in-review",
+    "cli"
+  ],
+  "author": "ernd (https://ernd.ai)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/provenanceresearch/tokens-wrapped.git"
+  },
+  "homepage": "https://tokenswrapped.com",
+  "bugs": {
+    "url": "https://github.com/provenanceresearch/tokens-wrapped/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
