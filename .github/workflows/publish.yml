@@ -1,12 +1,14 @@
-# Publishes to npm when a GitHub release is published. The package gets npm provenance: npmjs.com shows which
-# commit and workflow run built it, so anyone can check the published code is the code in this repo.
+# Publishes to npm when a GitHub release is published, with npm provenance: npmjs.com shows which commit and
+# workflow run built each version, so anyone can check the published code is the code in this repo.
+# Auth: npm trusted publishing (OIDC, no stored token) once it's set up for the package on npmjs.com. The very
+# first publish, before the package exists, uses the NPM_TOKEN secret; delete that secret afterwards.
 name: publish
 on:
   release:
     types: [published]
 permissions:
   contents: read
-  id-token: write # needed for provenance
+  id-token: write # OIDC: trusted publishing and provenance
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -14,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # npm 11.5+ is needed for trusted publishing
           registry-url: https://registry.npmjs.org
       - run: npm test
       - run: npm publish --provenance --access public
