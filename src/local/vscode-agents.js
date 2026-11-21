@@ -115,7 +115,10 @@ function makeReader({ id, NAME, extId, flavor, extraRoots = () => [] }) {
     const t = emptyTally(id, NAME);
     let i = 0;
     for (const { id: taskId, file } of list) {
-      if (++i % 200 === 0) progress(`${NAME}: ${i} of ${list.length} tasks`);
+      if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} tasks`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
       let text;
       try {
         text = readFileSync(file, 'utf8');

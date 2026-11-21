@@ -131,7 +131,10 @@ export async function read({ home, env, win, progress = () => {} }) {
   list.sort((a, b) => (a.endsWith('.jsonl') === b.endsWith('.jsonl') ? 0 : a.endsWith('.jsonl') ? -1 : 1));
   let i = 0;
   for (const f of list) {
-    if (++i % 200 === 0) progress(`${NAME}: ${i} of ${list.length} chats`);
+    if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} chats`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
     const project = relative(dir, f).split(sep)[0]; // the project folder name (a hash), counted only
     try {
       let chat;

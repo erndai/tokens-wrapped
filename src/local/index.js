@@ -46,9 +46,10 @@ export async function scanLocal({ home, env = {}, now = new Date(), progress = (
   const tallies = [];
   const notes = [];
   for (const r of readers) {
-    progress(`Reading ${r.NAME}...`);
+    progress(`Reading ${r.NAME}...`, { name: r.NAME });
     try {
-      const t = await r.read({ home, env, win, progress });
+      const t = await r.read({ home, env, win, progress: (m, info) => progress(m, { name: r.NAME, ...info }) });
+      if (t) progress(null, { name: r.NAME, done: true, t });
       const same = t && tallies.find((x) => x.id === t.id);
       if (same) mergeInto(same, t);
       else if (t) tallies.push(t);

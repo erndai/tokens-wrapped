@@ -144,7 +144,10 @@ export async function read({ home, env, win, progress = () => {} }) {
   const receipts = new Set();
   let i = 0;
   for (const f of list) {
-    if (++i % 200 === 0) progress(`${NAME}: ${i} of ${list.length} sessions`);
+    if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} sessions`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
     const step = sessionReader(t, win, f, receipts);
     try {
       await eachLine(f, step);

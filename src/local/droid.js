@@ -62,7 +62,10 @@ export async function read({ home, env, win, progress = () => {} }) {
     const list = walk(r, (n) => n.endsWith('.settings.json'), { since: win.start });
     let i = 0;
     for (const f of list) {
-      if (++i % 500 === 0) progress(`${NAME}: ${i} of ${list.length} sessions`);
+      if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} sessions`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
       any = true;
       const rel = relative(r, f).split(sep);
       const project = rel.length > 1 ? `${r}${sep}${rel[0]}` : null; // the per-folder slug, counted only

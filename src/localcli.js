@@ -2,7 +2,8 @@
 
 import { scanLocal } from './local/index.js';
 import { estimate } from './local/value.js';
-import { usd } from './format.js';
+import { usd, colorLevel } from './format.js';
+import { loadingScreen } from './loading.js';
 import { compact, shortDate, langName, prettyModel } from './share.js';
 
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
@@ -37,33 +38,14 @@ export function localJson(s, value) {
   return { ...s, apiValue: value };
 }
 
-// A one-line progress spinner on stderr, cleared when done. No-op when stderr isn't a terminal.
-function spinner(stream) {
-  if (!stream?.isTTY) return { update() {}, done() {} };
-  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  let i = 0;
-  let msg = 'Reading your coding agents...';
-  const draw = () => stream.write(`\r\x1b[2K${frames[i++ % frames.length]} ${msg}`);
-  const timer = setInterval(draw, 90);
-  draw();
-  return {
-    update(m) {
-      msg = m;
-    },
-    done() {
-      clearInterval(timer);
-      stream.write('\r\x1b[2K');
-    },
-  };
-}
-
 export async function runLocal({ args, env, home, now, out, err, stderr, scan = scanLocal }) {
-  const spin = spinner(stderr);
+  const level = colorLevel({ env, isTTY: Boolean(stderr?.isTTY), noColorFlag: args.noColor });
+  const screen = loadingScreen(stderr, { level, now });
   let r;
   try {
-    r = await scan({ home, env, now, progress: (m) => spin.update(m) });
+    r = await scan({ home, env, now, progress: (m, info) => screen.update(m, info) });
   } finally {
-    spin.done();
+    await screen.done();
   }
   for (const n of r.notes) err(`tokens-wrapped: ${n}\n`);
   if (!r.summary) {

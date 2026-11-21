@@ -109,7 +109,10 @@ export async function read({ home, env, win, progress = () => {} }) {
   const models = new Map();
   let i = 0;
   for (const w of list) {
-    if (++i % 200 === 0) progress(`${NAME}: ${i} of ${list.length} sessions`);
+    if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} sessions`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
     if (!models.has(w.root)) models.set(w.root, cleanModel(configModel(w.root)) || DEFAULT_MODEL);
     const step = wireReader(t, win, { ...w, model: models.get(w.root) }, seen);
     try {

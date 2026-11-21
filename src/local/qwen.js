@@ -88,7 +88,10 @@ export async function read({ home, env, win, progress = () => {} }) {
   const seen = new Set();
   let i = 0;
   for (const f of list) {
-    if (++i % 200 === 0) progress(`${NAME}: ${i} of ${list.length} chats`);
+    if (++i % 10 === 0) {
+      progress(`${NAME}: ${i} of ${list.length} chats`, { i, n: list.length, t });
+      await new Promise((r) => setImmediate(r)); // let the loading screen draw
+    }
     const fallback = basename(f, '.jsonl');
     try {
       await eachLine(f, (line) => addLine(t, line, win, seen, fallback));
