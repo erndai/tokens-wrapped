@@ -2,6 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/erndai/tokens-wrapped/actions/workflows/ci.yml"><img alt="tests" src="https://github.com/erndai/tokens-wrapped/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/tokens-wrapped"><img alt="npm" src="https://img.shields.io/npm/v/tokens-wrapped?color=6a97e6"></a>
   <img alt="dependencies: 0" src="https://img.shields.io/badge/dependencies-0-7682d7">
   <a href="SECURITY.md"><img alt="everything stays on your computer" src="https://img.shields.io/badge/data-stays%20on%20your%20computer-6a97e6"></a>
   <img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-9775c6">

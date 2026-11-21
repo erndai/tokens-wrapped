@@ -1,7 +1,6 @@
 # Publishes to npm when a GitHub release is published, with npm provenance: npmjs.com shows which commit and
 # workflow run built each version, so anyone can check the published code is the code in this repo.
-# Auth: npm trusted publishing (OIDC, no stored token) once it's set up for the package on npmjs.com. The very
-# first publish, before the package exists, uses the NPM_TOKEN secret; delete that secret afterwards.
+# Auth: npm trusted publishing (OIDC). There is no stored npm token: npm accepts this workflow in this repo only.
 name: publish
 on:
   release:
@@ -20,5 +19,3 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm test
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
