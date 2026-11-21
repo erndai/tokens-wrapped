@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { SKY, wordmark } from '../src/brand.js';
 
 const out = process.argv[2] || 'docs';
-const CMD = process.argv[3] || 'npx tokens-wrapped';
+const CMD = process.argv[3] || 'npx -y tokens-wrapped';
 const FONT = "'ABC Diatype', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 

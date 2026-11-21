@@ -101,7 +101,7 @@ test('Pi: cache folded into input, forks and subagent artifacts not double count
   assert.equal(t.byModel.get('claude-sonnet-4-5').cacheWrite1h, 50);
   assert.equal(t.tools.get('edit'), 1);
   assert.equal(t.tools.get('write'), 1);
-  assert.equal(t.lines, 5);
+  assert.equal(t.lines, 2); // the edit to a.ts; notes.md is prose, not code
   assert.equal(t.projects.size, 1);
   assert.deepEqual([...t.sessions].sort(), ['aaa', 'bbb']);
   noSecret(t);

@@ -1,6 +1,6 @@
 # What tokens-wrapped reads, and what leaves your computer
 
-## The default: `npx tokens-wrapped`
+## The default: `npx -y tokens-wrapped`
 
 - It reads the usage logs and databases your coding agents already keep on your computer (Claude Code, Codex,
   OpenCode and the others listed in the README). Files are opened read-only; SQLite databases are opened with

@@ -23,6 +23,6 @@ for (const x of c.story) {
 writeFileSync(join(out, 'cards', 'order.json'), JSON.stringify(ids));
 let demo = page(d)
   .replace('<title>Your year in AI</title>', '<title>tokens-wrapped sample</title><meta name="robots" content="noindex">')
-  .replace(/<p class="note">[^<]*<\/p>/, '<p class="note">A sample with made-up numbers. Run <code>npx tokens-wrapped</code> for yours.</p>');
+  .replace(/<p class="note">[^<]*<\/p>/, '<p class="note">A sample with made-up numbers. Run <code>npx -y tokens-wrapped</code> for yours.</p>');
 writeFileSync(join(out, 'demo.html'), demo);
 console.log('cards:', ids.join(' '));

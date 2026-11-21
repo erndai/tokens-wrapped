@@ -14,7 +14,7 @@ Your year in AI, from the logs your coding agents already keep ([tokenswrapped.c
 One command, no keys:
 
 ```sh
-npx tokens-wrapped
+npx -y tokens-wrapped
 ```
 
 It reads this year's usage from Claude Code, Codex, OpenCode and the other agents on your computer, prints a
@@ -44,7 +44,8 @@ summary, and opens a recap you can tap through and post.
 Supported: Claude Code, Codex, Cursor, OpenCode, Kilo Code, Cline, Roo Code, Pi, Gemini CLI, Qwen Code, Copilot CLI,
 Droid, Kimi CLI, Goose and Crush. Notes:
 
-- Claude Code (and Gemini CLI) delete logs after 30 days by default, so the recap starts at your oldest log.
+- Claude Code (and Gemini CLI) delete logs after 30 days by default, so the recap starts at your oldest log. It tells you
+  when that happened; set `cleanupPeriodDays` in `~/.claude/settings.json` to keep more.
 - Cursor keeps no token counts on your computer, so it shows messages and AI-written lines, not tokens. Crush stores
   cost but not token totals. Amp keeps its history on its servers, so it can't be read locally.
 - "At API prices" is an estimate: it ignores long-context tiers, batch and fast modes.
@@ -56,8 +57,8 @@ names, tool names and file extensions: [src/local/](src/local/), one small reade
 
 | Agent | What it reads |
 |---|---|
-| Claude Code | `~/.claude/projects/**/*.jsonl` (token counts per reply, tool calls) |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` |
+| Claude Code | `~/.claude/projects/**/*.jsonl`, subagents and workflow agents included (token counts per reply, tool calls; lines copied into resumed sessions counted once) |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl[.zst]` and `~/.codex/archived_sessions/` (forked sessions don't recount their parent) |
 | Cursor | Cursor's `state.vscdb` (messages per chat) and `~/.cursor/ai-tracking` (AI-written lines) |
 | OpenCode, Kilo Code | their SQLite databases in `~/.local/share` |
 | Cline, Roo Code | the extension's task folders in your editor's storage |
@@ -67,7 +68,11 @@ names, tool names and file extensions: [src/local/](src/local/), one small reade
 provider's published list price ([src/local/prices.js](src/local/prices.js), with sources and dates). Agents that
 store their own cost (OpenCode, Pi) use it as is.
 
-Needs Node 18 or newer; agents that keep a SQLite database (Cursor, OpenCode, Kilo, Goose, Crush) need Node 22.5+.
+Needs Node 18 or newer; agents that keep a SQLite database (Cursor, OpenCode, Kilo, Goose, Crush) need Node 22.5+, and
+Codex's compressed logs need Node 22.15+. Big logs are read on several threads, all on your computer.
+
+Checked against [ccusage](https://github.com/ryoppippi/ccusage) on a heavy user's Claude Code and Codex logs: token
+totals agree within 0.2%.
 Options: `--no-open`, `--json`, `--no-color`. From source: `git clone`, then `node bin/tokens-wrapped.js`.
 
 ## Tests

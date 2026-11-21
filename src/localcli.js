@@ -4,7 +4,7 @@ import { scanLocal } from './local/index.js';
 import { estimate } from './local/value.js';
 import { usd, colorLevel } from './format.js';
 import { loadingScreen } from './loading.js';
-import { compact, shortDate, langName, prettyModel } from './share.js';
+import { compact, shortDate, langName, prettyModel, duration } from './share.js';
 
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
 const n0 = (x) => Math.round(x).toLocaleString('en-US');
@@ -25,8 +25,30 @@ export function localText(s, value, { bold = (x) => x, dim = (x) => x } = {}) {
   pair(s.cacheHit != null ? `${pct(s.cacheHit)} cache hits` : '', s.streak > 1 ? `${s.streak}-day streak` : '');
   if (s.peak) pair(`Biggest day ${shortDate(s.peak.date)}`, s.busiestHour != null ? `busiest at ${hourLabel(s.busiestHour)}` : '');
   rows.push('');
-  rows.push(`  ${dim('Harnesses')}  ${s.harnesses.map((h) => `${h.name} ${h.tokensKnown ? compact(h.tokens) : `${n0(h.replies)} messages`}`).join(dim(' · '))}`);
-  if (s.models.length) rows.push(`  ${dim('Models')}     ${s.models.slice(0, 3).map((m) => prettyModel(m.name)).join(dim(' · '))}`);
+  const list = (label, items) => {
+    // Wrap at 78 columns, continuing under the first item.
+    let line = `  ${dim(label.padEnd(10))} `;
+    let width = 13;
+    items.forEach((it, i) => {
+      const sep = i ? ' · ' : '';
+      if (i && width + sep.length + it.length > 78) {
+        rows.push(line);
+        line = ' '.repeat(13) + it;
+        width = 13 + it.length;
+      } else {
+        line += (sep ? dim(sep) : '') + it;
+        width += sep.length + it.length;
+      }
+    });
+    rows.push(line);
+  };
+  list('Harnesses', s.harnesses.map((h) => `${h.name} ${h.tokensKnown ? compact(h.tokens) : `${n0(h.replies)} messages`}`));
+  if (s.models.length) list('Models', s.models.slice(0, 3).map((m) => prettyModel(m.name)));
+  const feats = [];
+  if (s.together) feats.push(`${n0(s.together.agents)} agents at once`);
+  if (s.longestSession) feats.push(`${duration(s.longestSession.hours).replace(/ (hour|day)s?$/, "-$1")} session`);
+  if (s.leash) feats.push(`${n0(s.leash.actions)} actions on one ask`);
+  if (feats.length) list('Records', feats);
   if (s.built?.lines) {
     const lang = s.built.languages[0] ? `, mostly ${langName(s.built.languages[0].ext)}` : '';
     rows.push(`  ${dim('Built')}      ${n0(s.built.lines)} lines across ${n0(s.built.files)} files${lang}`);

@@ -15,27 +15,13 @@ import * as goose from './goose.js';
 import * as crush from './crush.js';
 import * as kilo from './kilo.js';
 import { readers as vscodeAgents } from './vscode-agents.js';
-import { localDay } from './tally.js';
+import { localDay, mergeInto } from './tally.js';
+export { mergeInto };
+import { WORDS_PER_TOKEN, TYPING_WPM } from './persona.js';
 
 export const READERS = [claude, codex, cursor, opencode, kilo, ...vscodeAgents, pi, gemini, qwen, copilot, droid, kimi, goose, crush];
 
 // Two readers can report the same harness (Kilo's CLI and its VS Code extension): fold them into one tally.
-export function mergeInto(a, b) {
-  for (const k of Object.keys(a.tokens)) a.tokens[k] += b.tokens[k];
-  for (const k of ['cost', 'replies', 'prompts', 'lines', 'webSearches']) a[k] += b[k];
-  for (const k of ['sessions', 'projects', 'files']) for (const v of b[k]) a[k].add(v);
-  for (const k of ['days', 'dayActivity', 'models', 'tools', 'exts']) for (const [x, v] of b[k]) a[k].set(x, (a[k].get(x) || 0) + v);
-  for (const [m, v] of b.byModel) {
-    const t = a.byModel.get(m) || { input: 0, cached: 0, cacheWrite: 0, cacheWrite1h: 0, output: 0 };
-    for (const k of Object.keys(t)) t[k] += v[k] || 0;
-    a.byModel.set(m, t);
-  }
-  b.hours.forEach((v, i) => (a.hours[i] += v));
-  a.tokensKnown = a.tokensKnown || b.tokensKnown;
-  a.notes.push(...b.notes);
-  return a;
-}
-
 // Jan 1 this year (local time) to now.
 export function localYear(now = new Date()) {
   return { start: new Date(now.getFullYear(), 0, 1), end: now, year: now.getFullYear() };
@@ -62,6 +48,60 @@ export async function scanLocal({ home, env = {}, now = new Date(), progress = (
 }
 
 const add = (m, k, v) => m.set(k, (m.get(k) || 0) + v);
+
+const MINUTE = 60000;
+const BREAK = 30 * MINUTE;
+
+// The most agents working at once: distinct agents (sessions, and subagents within them) with a reply in the
+// same minute, across every harness.
+export function together(tallies) {
+  const minutes = new Map();
+  for (const t of tallies) {
+    for (const [lane, ts] of t.lanes) {
+      const key = `${t.id}:${lane}`;
+      for (const x of ts) {
+        const m = Math.floor(x / MINUTE);
+        let set = minutes.get(m);
+        if (!set) minutes.set(m, (set = new Set()));
+        set.add(key);
+      }
+    }
+  }
+  let best = null;
+  for (const [m, set] of minutes) if (!best || set.size > best.agents) best = { agents: set.size, at: new Date(m * MINUTE) };
+  return best && best.agents >= 2 ? best : null;
+}
+
+// The longest session: one session (with its subagents) replying with no gap over 30 minutes.
+export function longestSession(tallies) {
+  let best = null;
+  for (const t of tallies) {
+    const bySession = new Map();
+    for (const [lane, ts] of t.lanes) {
+      const s = String(lane).split('/')[0];
+      const all = bySession.get(s);
+      if (all) all.push(...ts);
+      else bySession.set(s, [...ts]);
+    }
+    for (const ts of bySession.values()) {
+      ts.sort((a, b) => a - b);
+      let start = ts[0];
+      for (let i = 1; i <= ts.length; i++) {
+        if (i < ts.length && ts[i] - ts[i - 1] <= BREAK) continue;
+        const ms = ts[i - 1] - start;
+        if (!best || ms > best.ms) best = { ms, at: new Date(start), harness: t.name };
+        start = ts[i];
+      }
+    }
+  }
+  return best && best.ms >= 60 * MINUTE ? { hours: best.ms / 3600000, at: best.at, harness: best.harness } : null;
+}
+
+// Your agents' writing as a person typing it: about 0.75 words a token, 40 words a minute.
+export function typing(outputTokens) {
+  const words = outputTokens * WORDS_PER_TOKEN;
+  return words >= 1000 ? { words, hours: words / TYPING_WPM / 60 } : null;
+}
 
 // One summary across every harness, in the shape the cards read (see usage.js summarize), plus local extras.
 export function summarizeLocal(tallies, win) {
@@ -119,6 +159,9 @@ export function summarizeLocal(tallies, win) {
       tokensKnown: t.tokensKnown,
     }))
     .sort((a, b) => b.tokens - a.tokens || b.replies - a.replies);
+  const leash = tallies.reduce((a, t) => (t.leash && (!a || t.leash.actions > a.actions) ? t.leash : a), null);
+  const longest = longestSession(tallies);
+  const most = together(tallies);
   return {
     source: 'local',
     year: win.year,
@@ -143,5 +186,9 @@ export function summarizeLocal(tallies, win) {
     built: lines || files ? { lines, files, languages: sorted(exts).slice(0, 5).map(([ext, edits]) => ({ ext, edits })) } : null,
     storedCost: storedCost || null,
     webSearches: webSearches || null,
+    together: most ? { agents: most.agents, date: localDay(most.at), hour: most.at.getHours() } : null,
+    leash: leash && leash.actions >= 25 ? { actions: leash.actions, date: leash.when ? localDay(leash.when) : null } : null,
+    longestSession: longest ? { hours: longest.hours, date: localDay(longest.at), harness: longest.harness } : null,
+    typing: typing(tokens.output),
   };
 }

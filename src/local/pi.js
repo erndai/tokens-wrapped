@@ -9,7 +9,7 @@
 
 import { existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { emptyTally, addReply, addTool, addEdit, eachLine, safeJson, toDate, inWindow, num } from './tally.js';
+import { emptyTally, addReply, addPrompt, addTool, addEdit, eachLine, safeJson, toDate, inWindow, num } from './tally.js';
 import { walk, expandHome } from './walk.js';
 
 export const id = 'pi';
@@ -60,7 +60,7 @@ export function sessionReader(t, win, file, seen) {
     if (entryKey && seen.has(entryKey)) return; // a fork's copy of an entry already counted
     if (m.role === 'user') {
       if (entryKey) seen.add(entryKey);
-      t.prompts++;
+      addPrompt(t, session, when);
       if (cwd) t.projects.add(cwd);
       return;
     }
@@ -71,7 +71,7 @@ export function sessionReader(t, win, file, seen) {
     if (replyKey) seen.add(replyKey);
     for (const c of Array.isArray(m.content) ? m.content : []) {
       if (c?.type !== 'toolCall') continue;
-      addTool(t, c.name);
+      addTool(t, c.name, session);
       const a = c.arguments && typeof c.arguments === 'object' ? c.arguments : null;
       if (!a) continue;
       if (c.name === 'write') addEdit(t, a.path, a.content);
@@ -120,7 +120,7 @@ export async function read({ home, env, win, progress = () => {} }) {
       await new Promise((r) => setImmediate(r)); // let the loading screen draw
     }
     try {
-      await eachLine(f, sessionReader(t, win, f, seen));
+      await eachLine(f, sessionReader(t, win, f, seen), { match: ['"type":"session"', '"type":"message"'] });
     } catch {
       /* unreadable file: skip */
     }

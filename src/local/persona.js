@@ -3,6 +3,8 @@
 // Tokens to "novels": about 0.75 words a token, 90,000 words a novel.
 export const WORDS_PER_TOKEN = 0.75;
 export const WORDS_PER_NOVEL = 90000;
+// A fast typist, for "if a person typed it".
+export const TYPING_WPM = 40;
 export function novels(tokens) {
   return Math.round((tokens * WORDS_PER_TOKEN) / WORDS_PER_NOVEL);
 }
@@ -13,6 +15,9 @@ export function personality(u) {
   const modelCount = u.models.length;
   const outRatio = u.tokens.input ? u.tokens.output / u.tokens.input : 0;
   const late = u.busiestHour != null && (u.busiestHour >= 22 || u.busiestHour < 4);
+  if (u.together?.agents >= 25) {
+    return { name: 'The Conductor', line: `You had ${u.together.agents.toLocaleString('en-US')} agents working at the same time.` };
+  }
   if (u.built?.lines >= 100000) {
     return { name: 'The Shipper', line: `Your agents wrote ${u.built.lines.toLocaleString('en-US')} lines of code this year.` };
   }

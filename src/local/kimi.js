@@ -116,7 +116,7 @@ export async function read({ home, env, win, progress = () => {} }) {
     if (!models.has(w.root)) models.set(w.root, cleanModel(configModel(w.root)) || DEFAULT_MODEL);
     const step = wireReader(t, win, { ...w, model: models.get(w.root) }, seen);
     try {
-      await eachLine(w.file, step);
+      await eachLine(w.file, step, { match: ['"usage.record"', '"StatusUpdate"', '"TurnBegin"', '"ToolCall"'] });
     } catch {
       /* unreadable file: skip */
     }

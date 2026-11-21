@@ -9,7 +9,7 @@ import { sampleSummary, SAMPLE_VALUE } from '../scripts/sample.js';
 const sample = () => recapData({ usage: sampleSummary(), value: SAMPLE_VALUE });
 
 test('story: every local card, in order', () => {
-  assert.deepEqual(cards(sample()).story.map((c) => c.id), ['intro', 'value', 'tokens', 'harnesses', 'models', 'cache', 'peak', 'rhythm', 'built', 'persona', 'summary']);
+  assert.deepEqual(cards(sample()).story.map((c) => c.id), ['intro', 'value', 'tokens', 'harnesses', 'models', 'cache', 'swarm', 'peak', 'marathon', 'rhythm', 'leash', 'built', 'typing', 'persona', 'summary']);
 });
 
 test('cards without a price estimate skip the value card', () => {
@@ -40,7 +40,7 @@ test('a recap, not an ad: no pitch, no Spotify, no dashes; text escaped', () => 
 });
 
 test('post text: the numbers and the site', () => {
-  assert.equal(postText(sample()), 'my 2026 in AI: 5.1B tokens, $9,840 at API prices, 95% cache hits, 284K lines written, biggest day Sep 17\n\ntokenswrapped.com');
+  assert.equal(postText(sample()), 'my 2026 in AI: 5.1B tokens, $9,840 at API prices, 14 agents at once, 95% cache hits, 412 agent actions without a word from me, 284K lines written\n\ntokenswrapped.com');
 });
 
 test('formatting helpers', () => {

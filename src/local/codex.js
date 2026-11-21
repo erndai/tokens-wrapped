@@ -1,17 +1,39 @@
-// Codex CLI: one JSONL rollout per session under $CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl (~/.codex).
+// Codex CLI: one JSONL rollout per session under $CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl (~/.codex), and
+// archived ones in $CODEX_HOME/archived_sessions/. Newer Codex compresses rollouts: rollout-*.jsonl.zst.
 // token_count events carry the session's running total (info.total_token_usage). Each event's growth over the
 // previous total is that turn's usage, dated at the event. OpenAI counts: input_tokens already includes
 // cached_input_tokens; output_tokens already includes reasoning_output_tokens. Model: latest turn_context.
 
 import { readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { emptyTally, addReply, addTool, addEdit, eachLine, touchedSince, safeJson, toDate, inWindow, num } from './tally.js';
+import { join, basename } from 'node:path';
+import { readSplit } from './pool.js';
+import { emptyTally, addReply, addPrompt, addTool, addEdit, eachLine, touchedSince, safeJson, toDate, inWindow, num, canZstd, isCode } from './tally.js';
 
 export const id = 'codex';
 export const NAME = 'Codex';
 
 export function root({ home, env = {} }) {
   return join(env.CODEX_HOME || join(home, '.codex'), 'sessions');
+}
+
+export function roots({ home, env = {} }) {
+  const base = env.CODEX_HOME || join(home, '.codex');
+  return [join(base, 'sessions'), join(base, 'archived_sessions')].filter((d) => existsSync(d));
+}
+
+const ROLLOUT = /\.jsonl(\.zst)?$/;
+
+// Each rollout once: the same session can sit both plain and compressed, or in sessions and archived_sessions.
+export function rollouts({ home, env, since }) {
+  const found = [];
+  for (const d of roots({ home, env })) walk(d, found, since);
+  const byName = new Map();
+  for (const f of found) {
+    const name = basename(f).replace(ROLLOUT, '');
+    const prev = byName.get(name);
+    if (!prev || (prev.endsWith('.zst') && !f.endsWith('.zst'))) byName.set(name, f);
+  }
+  return [...byName.values()];
 }
 
 function walk(dir, out, since) {
@@ -24,7 +46,7 @@ function walk(dir, out, since) {
   for (const e of ents) {
     const p = join(dir, e.name);
     if (e.isDirectory()) walk(p, out, since);
-    else if (e.name.endsWith('.jsonl') && touchedSince(p, since)) out.push(p);
+    else if (ROLLOUT.test(e.name) && touchedSince(p, since)) out.push(p);
   }
 }
 
@@ -43,7 +65,7 @@ export function addPatch(t, patch) {
       addEdit(t, file, '');
       continue;
     }
-    if (file && l.startsWith('+') && !l.startsWith('+++')) t.lines++;
+    if (file && l.startsWith('+') && !l.startsWith('+++') && isCode(file)) t.lines++;
   }
 }
 
@@ -51,6 +73,17 @@ export function addPatch(t, patch) {
 export function sessionReader(t, win, sessionId) {
   let model = null;
   let prev = { input_tokens: 0, cached_input_tokens: 0, cache_write_input_tokens: 0, output_tokens: 0, reasoning_output_tokens: 0 };
+  let first = true;
+  // A forked session's first running total already includes the session it was forked from: count only that
+  // first turn's own usage (last_token_usage), so the parent's tokens aren't counted twice.
+  const base = (info) => {
+    if (!first) return;
+    first = false;
+    const cur = info.total_token_usage;
+    const last = info.last_token_usage;
+    if (!last) return;
+    prev = Object.fromEntries(Object.keys(prev).map((k) => [k, Math.max(0, num(cur[k]) - num(last[k]))]));
+  };
   const step = (line) => {
     if (!/"(token_count|turn_context|user_message|function_call|custom_tool_call)"/.test(line)) return;
     const o = safeJson(line);
@@ -63,20 +96,24 @@ export function sessionReader(t, win, sessionId) {
       return;
     }
     if (!inWindow(when, win)) {
-      if (p.type === 'token_count' && p.info?.total_token_usage) prev = p.info.total_token_usage; // keep the running base
+      if (p.type === 'token_count' && p.info?.total_token_usage) {
+        base(p.info);
+        prev = p.info.total_token_usage; // keep the running base
+      }
       return;
     }
     if (p.type === 'user_message') {
-      t.prompts++;
+      addPrompt(t, sessionId, when);
       step.touched = true;
     } else if (p.type === 'function_call' || p.type === 'custom_tool_call') {
-      addTool(t, p.name);
+      addTool(t, p.name, sessionId);
       // Patches arrive through apply_patch or inside a shell/exec command; either way the text has a patch block.
       const text = typeof p.input === 'string' ? p.input : typeof p.arguments === 'string' ? p.arguments : '';
       // Inside exec the patch is a quoted string in code, so its line breaks are written as \n.
       if (text.includes('*** Begin Patch')) addPatch(t, text.replace(/\\n/g, '\n'));
       step.touched = true;
     } else if (p.type === 'token_count' && p.info?.total_token_usage) {
+      base(p.info);
       const cur = p.info.total_token_usage;
       const d = (k) => Math.max(0, num(cur[k]) - num(prev[k]));
       const delta = {
@@ -96,25 +133,27 @@ export function sessionReader(t, win, sessionId) {
   return step;
 }
 
-export async function read({ home, env, win, progress = () => {} }) {
-  const dir = root({ home, env });
-  if (!existsSync(dir)) return null;
-  const list = [];
-  walk(dir, list, win.start);
-  if (!list.length) return null;
+// Reads a batch of rollouts. tick(i, t) after every few files. Runs inline or on a worker thread.
+export async function readList(list, win, tick = () => {}) {
   const t = emptyTally(id, NAME);
   let i = 0;
   for (const f of list) {
-    if (++i % 10 === 0) {
-      progress(`${NAME}: ${i} of ${list.length} sessions`, { i, n: list.length, t });
-      await new Promise((r) => setImmediate(r)); // let the loading screen draw
-    }
+    if (++i % 10 === 0) await tick(i, t);
     const step = sessionReader(t, win, f);
     try {
-      await eachLine(f, step);
+      await eachLine(f, step, { match: ['"token_count"', '"turn_context"', '"user_message"', '"function_call"', '"custom_tool_call"'] });
     } catch {
       /* unreadable file: skip */
     }
   }
+  return t;
+}
+
+export async function read({ home, env, win, progress = () => {} }) {
+  const list = rollouts({ home, env, since: win.start });
+  if (!list.length) return null;
+  const packed = list.filter((f) => f.endsWith('.zst')).length;
+  const t = await readSplit({ reader: import.meta.url, units: list.map((f) => [f]), win, name: NAME, unit: 'sessions', progress, empty: () => emptyTally(id, NAME) });
+  if (packed && !canZstd) t.notes.push(`Codex: ${packed} compressed sessions skipped; Node 22.15 or newer reads them`);
   return t.replies || t.prompts ? t : null;
 }

@@ -12,7 +12,7 @@ export function helpText() {
   return `tokens-wrapped ${VERSION}: your year in AI, from your coding agents' logs.
 
 Usage
-  npx tokens-wrapped              read this year's usage and open your recap
+  npx -y tokens-wrapped           read this year's usage and open your recap
 
 Options
   --no-open                       don't open the recap in the browser

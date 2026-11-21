@@ -39,8 +39,8 @@ export function cardPage(origin, id) {
   const img = `${origin}/c/${id}.png`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>My year in AI</title>
-<meta name="description" content="Made with tokens-wrapped. Get yours: npx tokens-wrapped">
-<meta property="og:title" content="My year in AI"><meta property="og:description" content="Made with tokens-wrapped. Get yours: npx tokens-wrapped">
+<meta name="description" content="Made with tokens-wrapped. Get yours: npx -y tokens-wrapped">
+<meta property="og:title" content="My year in AI"><meta property="og:description" content="Made with tokens-wrapped. Get yours: npx -y tokens-wrapped">
 <meta property="og:image" content="${esc(img)}"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="900">
 <meta property="og:url" content="${esc(`${origin}/c/${id}`)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(img)}">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
@@ -48,7 +48,7 @@ export function cardPage(origin, id) {
 background:radial-gradient(1200px 700px at 50% -10%,#2a2160 0%,#0b0a14 60%);color:#fff;font-family:"ABC Diatype",system-ui,-apple-system,"Segoe UI",sans-serif}
 img{width:min(900px,100%);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.5)}a{color:#fff}
 code{font-family:ui-monospace,Menlo,monospace;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:999px}</style></head>
-<body><img src="${esc(img)}" alt="A year in AI recap card"><p>Get yours: <code>npx tokens-wrapped</code></p><p><a href="/">tokenswrapped.com</a></p></body></html>`;
+<body><img src="${esc(img)}" alt="A year in AI recap card"><p>Get yours: <code>npx -y tokens-wrapped</code></p><p><a href="/">tokenswrapped.com</a></p></body></html>`;
 }
 
 export default {

@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { usd } from './format.js';
 import { SKY, wordmark, wordmarkWidth } from './brand.js';
 import { novels, personality } from './local/persona.js';
+import { TYPING_WPM } from './local/persona.js';
 
 export const STORY = { w: 1080, h: 1920 };
 export const WIDE = { w: 1600, h: 900 };
@@ -467,7 +468,9 @@ function stats(d) {
   const out = [];
   if (d.value?.api >= 1) out.push(['At API prices', usd(d.value.api)]);
   if (u) out.push(['Tokens', compact(u.tokens.total)]);
+  if (u?.together) out.push(['Agents at once', n0(u.together.agents)]);
   if (u?.cacheHit != null) out.push(['Cache hits', pct(u.cacheHit)]);
+  if (u?.longestSession) out.push(['Longest session', duration(u.longestSession.hours)]);
   if (u?.built?.lines) out.push(['Lines written', compact(u.built.lines)]);
   if (u?.streak > 1) out.push(['Longest streak', `${u.streak} days`]);
   if (u?.peak) out.push(['Biggest day', shortDate(u.peak.date)]);
@@ -525,6 +528,142 @@ function wideCard(d) {
   return card(id, 'For X', 'dusk', body, WIDE);
 }
 
+// Hours as the person would say them: "20.6 hours", "2 days".
+export function duration(hours) {
+  if (hours >= 48) return `${(hours / 24).toFixed(hours >= 240 ? 0 : 1).replace(/\.0$/, '')} days`;
+  return `${hours >= 10 ? hours.toFixed(1).replace(/\.0$/, '') : hours.toFixed(1)} hours`;
+}
+
+// Your agents' writing as a person typing it, in the biggest unit that reads well (a work year is 2,000 hours).
+export function typingTime(hours) {
+  const years = hours / 2000;
+  if (years >= 1) return { n: years >= 10 ? n0(years) : years.toFixed(1).replace(/\.0$/, ''), unit: years < 1.05 ? 'year' : 'years', of: 'of full-time typing' };
+  const weeks = hours / 40;
+  if (weeks >= 1) return { n: weeks >= 10 ? n0(weeks) : weeks.toFixed(1).replace(/\.0$/, ''), unit: weeks < 1.05 ? 'week' : 'weeks', of: 'of full-time typing' };
+  return { n: hours >= 10 ? n0(hours) : hours.toFixed(1).replace(/\.0$/, ''), unit: hours < 1.05 ? 'hour' : 'hours', of: 'of nonstop typing' };
+}
+
+function atHour(date, hour) {
+  return `${shortDate(date)}, ${hourLabel(hour)}`;
+}
+
+// Most agents at once: the main session as a sun, every other agent a dot in orbit around it.
+function swarmCard(d) {
+  const u = d.usage;
+  const g = u.together;
+  const id = 'swarm';
+  const cx = STORY.w / 2, cy = 720;
+  let body = mark() + corner(atHour(g.date, g.hour));
+  const n = Math.min(g.agents, 160);
+  let dots = '';
+  let placed = 0;
+  for (let ring = 0; placed < n - 1; ring++) {
+    const r = 190 + ring * 72;
+    const cap = Math.floor((2 * Math.PI * r) / 64);
+    const k = Math.min(cap, n - 1 - placed);
+    for (let j = 0; j < k; j++) {
+      const a = (j / k) * 2 * Math.PI + ring * 0.4 - Math.PI / 2;
+      const size = 14 + ((placed * 7) % 3) * 4;
+      const fill = [P.white, P.mist, P.peach, P.pink][(placed + ring) % 4];
+      dots += `<circle cx="${(cx + Math.cos(a) * r).toFixed(1)}" cy="${(cy + Math.sin(a) * r).toFixed(1)}" r="${size}" fill="${fill}" opacity="${(0.95 - ring * 0.12).toFixed(2)}"/>`;
+      placed++;
+    }
+  }
+  const rings2 = Math.ceil(Math.max(1, placed) / 30);
+  body += rings(cx, cy, 190, Math.min(5, rings2 + 1), P.white, 2, 0.18);
+  body += dots;
+  body += `<circle cx="${cx}" cy="${cy}" r="110" fill="${P.peach}"/>`;
+  body += text(PAD - 6, 1420, n0(g.agents), { size: fit(n0(g.agents), 600, 300), fill: P.white, ls: -0.05 });
+  body += text(PAD, 1530, 'agents working at once', { size: 76, fill: P.white });
+  body += lines(PAD, 1660, 'The most AI you had running in the same minute, subagents included.', 46, STORY.w - PAD * 2, { fill: P.white, op: 0.75, weight: 500, ls: -0.01 });
+  return card(id, 'At once', 'dusk', body);
+}
+
+// Longest leash: the most actions an agent took between two of your messages, as a winding trail.
+function leashCard(d) {
+  const L = d.usage.leash;
+  const id = 'leash';
+  const { w } = STORY;
+  let body = mark(P.ink) + text(PAD, 380, 'Your longest leash', { size: 96, fill: P.ink });
+  const big = n0(L.actions);
+  body += text(PAD - 6, 380 + 260, big, { size: fit(big, w - PAD * 2, 280), fill: P.night, ls: -0.05 });
+  body += lines(PAD, 790, 'actions your agent took on its own, between two of your messages', 58, w - PAD * 2, { fill: P.ink, weight: 600, ls: -0.015 });
+  // The trail: rows of beads, back and forth, one bead per action (capped), the last one lit.
+  const beads = Math.min(L.actions, 260);
+  const per = 20, x0 = PAD + 20, x1 = w - PAD - 20, y0 = 1080, gap = 62;
+  const step = (x1 - x0) / (per - 1);
+  let path = '';
+  for (let i = 0; i < beads; i++) {
+    const row = Math.floor(i / per), col = i % per;
+    const x = row % 2 ? x1 - col * step : x0 + col * step;
+    const y = y0 + row * gap;
+    if (y > 1740) break;
+    path += `${i ? 'L' : 'M'}${x.toFixed(1)} ${y}`;
+  }
+  body += `<path d="${path}" fill="none" stroke="${P.ink}" stroke-width="5" stroke-linejoin="round" opacity="0.35"/>`;
+  for (let i = 0; i < beads; i++) {
+    const row = Math.floor(i / per), col = i % per;
+    const x = row % 2 ? x1 - col * step : x0 + col * step;
+    const y = y0 + row * gap;
+    if (y > 1740) break;
+    body += `<circle cx="${x.toFixed(1)}" cy="${y}" r="${i === 0 ? 20 : 11}" fill="${i === 0 ? P.pink : P.ink}" opacity="${i === 0 ? 1 : 0.85}"/>`;
+  }
+  if (L.date) body += small(PAD, 1840, `${shortDate(L.date)}${L.actions > beads ? ` · one dot per ${Math.ceil(L.actions / beads)} actions` : ''}`, P.ink, 0.7, 36);
+  return card(id, 'Longest leash', P.peach, body);
+}
+
+// Typing it out: what your models wrote, as years of a person at a keyboard.
+function typingCard(d) {
+  const T = d.usage.typing;
+  const id = 'typing';
+  const { w } = STORY;
+  const tt = typingTime(T.hours);
+  let body = clouds(id, [[220, 260, 360, 80, 0.35], [880, 1780, 420, 100, 0.3]]) + mark();
+  body += text(PAD, 400, 'If a person typed', { size: 92, fill: P.white }) + text(PAD, 500, 'what your AI wrote', { size: 92, fill: P.white });
+  const big = `${tt.n} ${tt.unit}`;
+  body += text(PAD - 6, 760, big, { size: fit(big, w - PAD * 2, 250), fill: P.white, ls: -0.05 });
+  body += text(PAD, 870, tt.of, { size: 64, fill: P.white, op: 0.92, weight: 500, ls: -0.01 });
+  // A keyboard: rows of keys, a few lit.
+  const rowsK = [12, 11, 10, 7];
+  const kw = (w - PAD * 2 - 11 * 14) / 12;
+  rowsK.forEach((count, r) => {
+    const rowW = count * kw + (count - 1) * 14;
+    const xs = r === 3 ? (w - (kw * 2 + 14) * 1 - rowW + kw * 2) / 2 : PAD + (w - PAD * 2 - rowW) / 2;
+    for (let i = 0; i < count; i++) {
+      const space = r === 3 && i === 3;
+      const kx = xs + i * (kw + 14) + (r === 3 && i > 3 ? kw * 2 + 14 * 2 : 0);
+      const lit = (r * 5 + i * 3) % 11 === 0;
+      body += `<rect x="${kx.toFixed(1)}" y="${1060 + r * (kw + 14)}" width="${(space ? kw * 3 + 28 : kw).toFixed(1)}" height="${kw.toFixed(1)}" rx="14" fill="${lit ? P.peach : P.white}" opacity="${lit ? 1 : 0.22}"/>`;
+    }
+  });
+  body += lines(PAD, 1660, `Your models wrote about ${compact(T.words)} words. At ${n0(TYPING_WPM)} words a minute, that's ${n0(T.hours)} hours.`, 46, w - PAD * 2, { fill: P.white, op: 0.85, weight: 500, ls: -0.01 });
+  return card(id, 'Typing it out', P.blue, body);
+}
+
+// Longest session: a 24-hour clock, the session's stretch drawn around it.
+function marathonCard(d) {
+  const M = d.usage.longestSession;
+  const id = 'marathon';
+  const { w } = STORY;
+  const cx = w / 2, cy = 820, r = 300, c = 2 * Math.PI * r;
+  const frac = Math.min(1, M.hours / 24);
+  let body = mark() + text(PAD, 340, 'Your longest session', { size: 92, fill: P.white });
+  body += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${P.white}" stroke-width="70" opacity="0.25"/>`;
+  body += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${P.peach}" stroke-width="70" stroke-dasharray="${(c * frac).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="${frac < 1 ? 'round' : 'butt'}"/>`;
+  for (let h = 0; h < 24; h++) {
+    const a = (h / 24) * 2 * Math.PI - Math.PI / 2;
+    const r1 = r + 52, r2 = r + (h % 6 ? 68 : 84);
+    body += `<line x1="${(cx + Math.cos(a) * r1).toFixed(1)}" y1="${(cy + Math.sin(a) * r1).toFixed(1)}" x2="${(cx + Math.cos(a) * r2).toFixed(1)}" y2="${(cy + Math.sin(a) * r2).toFixed(1)}" stroke="${P.white}" stroke-width="${h % 6 ? 3 : 6}" opacity="0.7"/>`;
+  }
+  const big = duration(M.hours);
+  const [num, ...unit] = big.split(' ');
+  body += text(cx, cy + 40, num, { size: fit(num, r * 1.5, 190), fill: P.white, anchor: 'middle', ls: -0.05 });
+  body += text(cx, cy + 120, unit.join(' '), { size: 56, fill: P.white, anchor: 'middle', weight: 600, op: 0.9, ls: -0.01 });
+  body += lines(PAD, 1400, `One ${M.harness} session that never went quiet for more than 30 minutes.`, 58, w - PAD * 2, { fill: P.white, weight: 600, ls: -0.015 });
+  body += small(PAD, 1810, `Started ${shortDate(M.date)}`, P.white, 0.7, 40);
+  return card(id, 'Longest session', 'sky', body);
+}
+
 export function cards(d) {
   const u = d.usage;
   const story = [introCard(d)];
@@ -533,9 +672,13 @@ export function cards(d) {
   if (u?.harnesses?.length) story.push(harnessCard(d));
   if (d.models.length) story.push(modelsCard(d));
   if (u?.cacheHit != null && u.tokens.cached > 0) story.push(cacheCard(d));
+  if (u?.together) story.push(swarmCard(d));
   if (u?.peak) story.push(peakCard(d));
+  if (u?.longestSession) story.push(marathonCard(d));
   if (u?.hours?.some(Boolean)) story.push(rhythmCard(d));
+  if (u?.leash) story.push(leashCard(d));
   if (u?.built?.lines) story.push(builtCard(d));
+  if (u?.typing) story.push(typingCard(d));
   if (d.persona) story.push(personaCard(d));
   story.push(summaryCard(d));
   return { story, wide: wideCard(d) };
@@ -555,9 +698,11 @@ export function postText(d) {
   const bits = [];
   if (u?.tokens?.total) bits.push(`${compact(u.tokens.total)} tokens`);
   if (d.value?.api >= 1) bits.push(`${usd(d.value.api)} at API prices`);
+  if (u?.together?.agents >= 3) bits.push(`${n0(u.together.agents)} agents at once`);
   if (u?.cacheHit != null && u.tokens.cached > 0) bits.push(`${pct(u.cacheHit)} cache hits`);
+  if (u?.leash) bits.push(`${n0(u.leash.actions)} agent actions without a word from me`);
   if (u?.built?.lines) bits.push(`${compact(u.built.lines)} lines written`);
-  if (u?.peak) bits.push(`biggest day ${shortDate(u.peak.date)}`);
+  if (u?.peak && bits.length < 5) bits.push(`biggest day ${shortDate(u.peak.date)}`);
   return `my ${d.year} in AI: ${bits.join(', ')}\n\ntokenswrapped.com`;
 }
 

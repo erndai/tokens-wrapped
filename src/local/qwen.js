@@ -94,7 +94,7 @@ export async function read({ home, env, win, progress = () => {} }) {
     }
     const fallback = basename(f, '.jsonl');
     try {
-      await eachLine(f, (line) => addLine(t, line, win, seen, fallback));
+      await eachLine(f, (line) => addLine(t, line, win, seen, fallback), { match: ['"type":"user"', '"type":"assistant"'] });
     } catch {
       /* unreadable file: skip */
     }

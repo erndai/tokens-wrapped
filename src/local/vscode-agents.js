@@ -8,7 +8,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { emptyTally, addReply, addTool, addEdit, touchedSince, safeJson, toDate, inWindow, num } from './tally.js';
+import { emptyTally, addReply, addTool, addEdit, touchedSince, safeJson, toDate, inWindow, num, isCode } from './tally.js';
 
 // Editor builds whose globalStorage can hold these extensions.
 export const EDITORS = ['Code', 'Code - Insiders', 'Cursor', 'Windsurf', 'VSCodium'];
@@ -75,7 +75,7 @@ export function addTask(t, messages, win, taskId, flavor) {
       const added = tool.diffStats?.added;
       if (Number.isFinite(Number(added)) && added != null) {
         addEdit(t, tool.path, '');
-        t.lines += num(added);
+        if (isCode(tool.path)) t.lines += num(added);
       } else {
         addEdit(t, tool.path, typeof tool.content === 'string' ? tool.content : '');
       }
