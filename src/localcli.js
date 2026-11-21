@@ -69,8 +69,8 @@ export async function runLocal({ args, env, home, now, out, err, stderr, scan = 
   if (!r.summary) {
     err(
       'tokens-wrapped: no coding agent logs from this year found on this computer.\n' +
-        '  It reads Claude Code, Codex and OpenCode logs.\n' +
-        '  Team admin keys instead: tokens-wrapped --keys\n',
+        '  It reads Claude Code, Codex, Cursor, OpenCode and 11 other coding agents.\n' +
+        '',
     );
     return { code: 1 };
   }

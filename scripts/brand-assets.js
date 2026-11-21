@@ -5,39 +5,11 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SKY, wordmark } from '../src/brand.js';
-import { computeBill } from '../src/math.js';
-import { recapData, cards } from '../src/share.js';
-import { summarize, emptyTally, emptyCode, yearWindow } from '../src/usage.js';
 
 const out = process.argv[2] || 'docs';
 const CMD = process.argv[3] || 'npx tokens-wrapped';
 const FONT = "'ABC Diatype', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif";
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-
-// Sample recap cards (made-up numbers) to show on the banner.
-function sampleCards() {
-  const now = new Date('2026-11-20T15:00:00Z');
-  const w = yearWindow(now);
-  const t = emptyTally();
-  let seed = 7;
-  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  for (let d = w.start.getTime(), i = 0; d < w.end.getTime(); d += 86400000, i++) {
-    const day = new Date(d).toISOString().slice(0, 10);
-    const wk = new Date(d).getUTCDay();
-    let tok = (4e6 + i * 9e4) * (wk === 0 || wk === 6 ? 0.35 : 1) * (0.7 + rnd() * 0.6);
-    if (day === '2026-09-17') tok *= 4.2;
-    t.days.set(day, tok);
-  }
-  const total = [...t.days.values()].reduce((a, b) => a + b, 0);
-  Object.assign(t, { input: total * 0.86, output: total * 0.14 });
-  t.cached = t.input * 0.71;
-  t.models = new Map([['claude-opus-5-5', total * 0.41], ['gpt-5.1', total * 0.27], ['claude-haiku-5-5', total * 0.14]]);
-  const c = emptyCode();
-  Object.assign(c, { sessions: 4412, added: 182340, removed: 61210, commits: 1204, prs: 312, accepted: 9120, rejected: 1380 });
-  const usage = summarize(t, c, { ...w, sources: ['Anthropic', 'OpenAI'] });
-  const bill = computeBill([{ id: 'openai', monthly_usd: 10000 }, { id: 'anthropic', monthly_usd: 2000 }]);
-  return cards(recapData(bill, { now, usage })).story;
-}
 
 // A story card, scaled and tilted, as a nested svg.
 function thumb(card, x, y, h, rot) {

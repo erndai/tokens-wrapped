@@ -1,7 +1,7 @@
 {
   "name": "tokens-wrapped",
-  "version": "0.2.0",
-  "description": "Your year in AI from your own OpenAI and Anthropic reports: spend, tokens, cache hits, Claude Code. Keys never leave your computer.",
+  "version": "0.3.0",
+  "description": "Your year in AI from the logs your coding agents already keep: tokens, API cost, cache hits, streaks, lines written. One command, no keys.",
   "type": "module",
   "bin": {
     "tokens-wrapped": "bin/tokens-wrapped.js"
@@ -22,12 +22,12 @@
     "preview": "wrangler dev"
   },
   "keywords": [
-    "openai",
-    "anthropic",
     "claude-code",
+    "codex",
+    "cursor",
+    "opencode",
+    "ai",
     "tokens",
-    "costs",
-    "usage",
     "year-in-review",
     "cli"
   ],

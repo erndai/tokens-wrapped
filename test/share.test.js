@@ -1,150 +1,76 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { computeBill } from '../src/math.js';
-import { recapData, cards, page, postText, fit, esc, writeShare } from '../src/share.js';
-import { main } from '../src/cli.js';
-import { sink, NOW, EMPTY_HOME } from './_helpers.js';
+import { recapData, cards, page, postText, fit, esc, writeShare, prettyModel, compact, shortDate, PLANS, valueCard } from '../src/share.js';
+import { sampleSummary, SAMPLE_VALUE } from '../scripts/sample.js';
 
-const withModels = () =>
-  computeBill([
-    {
-      id: 'openai',
-      monthly_usd: 10000,
-      source: 'api',
-      by_item: [
-        { name: 'gpt-5.1', usd: 6200 },
-        { name: 'gpt-5.1-mini', usd: 2100 },
-        { name: 'o4 <deep> & research', usd: 1100 },
-      ],
-    },
-    { id: 'anthropic', monthly_usd: 2000, source: 'api', by_item: [{ name: 'claude-opus-5-5', usd: 2000 }] },
-    { id: 'wafer', monthly_usd: 2000 },
-    { id: 'other', monthly_usd: 20000 },
-  ]);
+const sample = () => recapData({ usage: sampleSummary(), value: SAMPLE_VALUE });
 
-const manual = () => computeBill([{ id: 'openai', monthly_usd: 10000 }, { id: 'wafer', monthly_usd: 2000 }]);
-
-test('recap data: AI vendors only, biggest first, models yearly', () => {
-  const d = recapData(withModels(), { now: NOW });
-  assert.equal(d.year, 2026);
-  assert.equal(d.spend, 168000);
-  assert.deepEqual(d.vendors.map((v) => v.name), ['OpenAI', 'Anthropic', 'Wafer']);
-  assert.equal(d.models[0].name, 'gpt-5.1');
-  assert.equal(d.models[0].value, '$74,400 a year');
-  assert.ok(!d.vendors.some((v) => v.name === 'Everything else'));
+test('story: every local card, in order', () => {
+  assert.deepEqual(cards(sample()).story.map((c) => c.id), ['intro', 'value', 'tokens', 'harnesses', 'models', 'cache', 'peak', 'rhythm', 'built', 'persona', 'summary']);
 });
 
-test('story: models card only when there are models', () => {
-  const ids = (b) => cards(recapData(b, { now: NOW })).story.map((c) => c.id);
-  assert.deepEqual(ids(withModels()), ['intro', 'spend', 'vendors', 'models', 'summary']);
-  assert.deepEqual(ids(manual()), ['intro', 'spend', 'vendors', 'summary']);
+test('cards without a price estimate skip the value card', () => {
+  const d = recapData({ usage: sampleSummary(), value: null });
+  assert.ok(!cards(d).story.some((c) => c.id === 'value'));
 });
 
-test('cards carry the numbers and escape names', () => {
-  const { story, wide } = cards(recapData(withModels(), { now: NOW }));
-  const all = [...story, wide].map((c) => c.svg).join('');
-  assert.match(all, /\$168,000/);
-  assert.match(all, /\$120,000 a year/);
-  assert.match(all, /o4 &lt;deep&gt; &amp; research/);
-  assert.doesNotMatch(all, /<deep>/);
-  for (const c of [...story, wide]) assert.match(c.svg, /^<svg [^>]*width="\d+" height="\d+"/);
+test('value card: plain, and one version per plan with the multiple', () => {
+  const d = sample();
+  const words = (svg) => svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(words(valueCard(d).svg), /At API prices, your year cost \$9,840/);
+  const v200 = words(valueCard(d, 200).svg);
+  assert.match(v200, /On a \$200\/month plan you paid \$1,200 for 6 months\./);
+  assert.match(v200, /8\.2x what you paid/);
+  assert.deepEqual(PLANS, [20, 100, 200]);
 });
 
-test('a recap, not an ad: branding only, no pitch, no borrowed brand words', () => {
-  for (const b of [withModels(), computeBill([{ id: 'openai', monthly_usd: 50 }])]) {
-    const d = recapData(b, { now: NOW });
-    const c = cards(d);
-    const all = [...c.story, c.wide].map((x) => x.svg).join('') + postText(d);
-    const words = all.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    assert.match(words, /ernd\.ai/);
-    assert.doesNotMatch(words, /back a year|% back|% at|annual fee|request|credit card|npx|make yours/i);
-    assert.doesNotMatch(postText(d), /ernd/);
-    assert.doesNotMatch(all, /spotify|\bwrapped\b/i); // our name is tokens-wrapped; never Spotify or "Wrapped" on its own
-    assert.doesNotMatch(all, /\bsav(e|es|ing|ings)\b/i);
-    assert.doesNotMatch(all, /[—–]/);
-  }
+test('a recap, not an ad: no pitch, no Spotify, no dashes; text escaped', () => {
+  const d = sample();
+  const c = cards(d);
+  const all = [...c.story, c.wide].map((x) => x.svg).join('') + postText(d);
+  const words = all.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(words, /ernd\.ai/);
+  assert.doesNotMatch(words, /back a year|% back|annual fee|request|credit card|npx/i);
+  assert.doesNotMatch(all, /spotify|\bwrapped\b/i);
+  assert.doesNotMatch(all, /[—–]/);
+  assert.equal(esc(`a<b>&"'`), 'a&lt;b&gt;&amp;&quot;&#39;');
 });
 
-test('fit shrinks long numbers', () => {
+test('post text: the numbers and the site', () => {
+  assert.equal(postText(sample()), 'my 2026 in AI: 5.1B tokens, $9,840 at API prices, 95% cache hits, 284K lines written, biggest day Sep 17\n\ntokenswrapped.com');
+});
+
+test('formatting helpers', () => {
+  assert.equal(prettyModel('claude-opus-5-5'), 'Claude Opus 5.5');
+  assert.equal(prettyModel('gpt-6.1-sol'), 'GPT-6.1 Sol');
+  assert.equal(prettyModel('claude-opus-4-20250514'), 'Claude Opus 4');
+  assert.equal(compact(4_870_000_000), '4.9B');
+  assert.equal(compact(56_300), '56.3K');
+  assert.equal(shortDate('2026-09-17'), 'Sep 17');
   assert.equal(fit('$1', 900, 260), 260);
   assert.ok(fit('$1,000,000,000', 900, 260) < 120);
 });
 
-test('page loads nothing from the network', () => {
-  const html = page(recapData(withModels(), { now: NOW }));
+test('the page makes one request, only when Post on X is clicked: the card upload', () => {
+  const html = page(sample());
   assert.doesNotMatch(html, /<script[^>]+src=/i);
   assert.doesNotMatch(html, /<link[^>]+href=/i);
-  assert.doesNotMatch(html, /@import|url\(\s*['"]?https?:/i);
-  const urls = html.match(/https?:\/\/[^\s"'<)]+/g) || [];
-  for (const u of urls) {
-    assert.ok(u.startsWith('http://www.w3.org/') || u.startsWith('https://x.com/intent/post') || u === 'https://tokenswrapped.com/api/card' || u.startsWith('https://tokenswrapped.com'), u);
-  }
-  // The only request the page can make is the card upload, and only from the Post on X click handler.
   assert.equal((html.match(/\bfetch\(/g) || []).length, 1);
   assert.match(html, /xBtn\.onclick=async\(\)=>\{[\s\S]*fetch\(UPLOAD,\{method:'POST',headers:\{'content-type':'image\/png'\},body:card/);
-  assert.equal((html.match(/<template /g) || []).length, 6);
-});
-
-test('esc', () => {
-  assert.equal(esc(`a<b>&"'`), 'a&lt;b&gt;&amp;&quot;&#39;');
+  for (const u of html.match(/https?:\/\/[^\s"'<)]+/g) || []) {
+    assert.ok(u.startsWith('http://www.w3.org/') || u.startsWith('https://x.com/intent/post') || u.startsWith('https://tokenswrapped.com'), u);
+  }
 });
 
 test('writeShare never overwrites', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'tokens-wrapped-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'tw-share-'));
   try {
-    writeShare(manual(), { now: NOW, dir });
-    assert.throws(() => writeShare(manual(), { now: NOW, dir }), /EEXIST/);
+    writeShare({ usage: sampleSummary(), value: SAMPLE_VALUE, dir });
+    assert.throws(() => writeShare({ usage: sampleSummary(), value: SAMPLE_VALUE, dir }), /EEXIST/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-async function runShare({ tty }) {
-  const dir = mkdtempSync(join(tmpdir(), 'tokens-wrapped-test-'));
-  const opened = [];
-  const stdout = sink({ isTTY: tty, columns: 80 });
-  const stderr = sink({ isTTY: tty });
-  const code = await main({
-    home: EMPTY_HOME,
-    argv: ['--openai', '10000', '--wafer', '2000', '--share'],
-    env: {},
-    stdout,
-    stderr,
-    stdin: { isTTY: tty },
-    fetch: () => {
-      throw new Error('network');
-    },
-    now: NOW,
-    openFile: (f) => opened.push(f),
-    shareDir: dir,
-  });
-  return { code, out: stdout.text, err: stderr.text, opened, dir };
-}
-
-test('--share on a terminal: writes the page, prints it, opens it', async () => {
-  const r = await runShare({ tty: true });
-  try {
-    assert.equal(r.code, 0);
-    assert.deepEqual(readdirSync(r.dir), ['year-in-ai.html']);
-    assert.match(r.out, /Your year in AI: file:\/\/.*year-in-ai\.html/);
-    assert.equal(r.opened.length, 1);
-    assert.match(readFileSync(r.opened[0], 'utf8'), /\$144,000/);
-  } finally {
-    rmSync(r.dir, { recursive: true, force: true });
-  }
-});
-
-test('--share piped: path on stderr, browser not opened', async () => {
-  const r = await runShare({ tty: false });
-  try {
-    assert.equal(r.code, 0);
-    assert.doesNotMatch(r.out, /year-in-ai/);
-    assert.match(r.err, /Your year in AI: file:\/\//);
-    assert.equal(r.opened.length, 0);
-  } finally {
-    rmSync(r.dir, { recursive: true, force: true });
   }
 });

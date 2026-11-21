@@ -2,7 +2,7 @@
 // self-contained HTML page. The page loads nothing from the network. It plays the cards like a story and turns
 // each one into a PNG in the browser (SVG -> canvas). It's a recap, not an ad: ernd shows up as branding only
 // (wordmark, sky colors, ernd.ai), with no card pitch or rates on the cards or in the post text.
-// Never draws the ernd card itself: its look isn't settled (facts.md, "Physical or ernd-branded cards").
+// ernd shows up as branding only (wordmark, sky colors, ernd.ai), never as a product pitch.
 
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,9 +10,8 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { usd } from './format.js';
-import { ERND } from './rates.js';
 import { SKY, wordmark, wordmarkWidth } from './brand.js';
-import { novels, personality } from './usage.js';
+import { novels, personality } from './local/persona.js';
 
 export const STORY = { w: 1080, h: 1920 };
 export const WIDE = { w: 1600, h: 900 };
@@ -38,33 +37,12 @@ const PAD = 90;
 
 // ---------- data ----------
 
-// bill: the cost report or typed amounts (optional). usage: from admin keys or from local agent logs (optional).
-export function recapData(bill, { now = new Date(), usage = null, value = null } = {}) {
-  const ai = bill ? bill.lines.filter((l) => l.kind !== 'card' && l.monthly_usd > 0) : [];
-  // Actual spend this year from the cost reports, when every AI line came from them. Otherwise the run rate.
-  const ytd = usage?.spendThisYear != null && ai.length && ai.every((l) => l.source === 'api') ? usage.spendByProvider : null;
-  const vendors = [...ai]
-    .map((l) => ({ name: l.short && l.name.length > 16 ? l.short : l.name, yearly: ytd ? ytd[l.name] ?? 0 : l.yearly_usd }))
-    .sort((a, b) => b.yearly - a.yearly)
-    .slice(0, 5);
-  const per = ytd ? ' this year' : ' a year';
-  // Models: by tokens when usage was read, else by spend from the cost report.
-  const models = usage?.models?.length
-    ? usage.models.slice(0, 5).map((m) => ({ name: prettyModel(m.name), value: compact(m.tokens) + ' tokens' }))
-    : ai
-        .flatMap((l) => (l.by_item || []).map((i) => ({ name: i.name, yearly: i.usd * 12 })))
-        .filter((m) => m.yearly > 0)
-        .sort((a, b) => b.yearly - a.yearly)
-        .slice(0, 5)
-        .map((m) => ({ name: m.name, value: usd(m.yearly) + ' a year' }));
+// usage: the summary from the local readers (local/index.js). value: the API-price estimate (local/value.js).
+export function recapData({ usage, value = null, now = new Date() } = {}) {
   return {
-    year: usage?.year || now.getUTCFullYear(),
-    spend: ytd ? usage.spendThisYear : bill && ai.length ? bill.ai_yearly_usd : null,
-    value, // { api, months } from value.js, when usage came from local logs
-    spendIsYtd: Boolean(ytd),
-    per,
-    vendors,
-    models,
+    year: usage?.year || now.getFullYear(),
+    value,
+    models: (usage?.models || []).slice(0, 5).map((m) => ({ name: prettyModel(m.name), value: compact(m.tokens) + ' tokens' })),
     usage,
     persona: personality(usage),
   };
@@ -234,18 +212,6 @@ function introCard(d) {
   return card(id, 'Intro', 'sky', body);
 }
 
-function spendCard(d) {
-  const body =
-    wave(1380, 70, 230, P.violet, 0, STORY.w) +
-    star(880, 360, 150, 12, P.ink, 0, 0.62) +
-    mark(P.ink) +
-    (d.spendIsYtd
-      ? hero('You spent', usd(d.spend), 'on AI this year', { fg: P.ink }) +
-        small(PAD, 1800, `${shortDate(d.usage.since)} to ${shortDate(d.usage.until)}`, P.ink, 0.7)
-      : hero('You spend', usd(d.spend), 'a year on AI', { fg: P.ink }) + small(PAD, 1800, 'at your current rate', P.ink, 0.7));
-  return card('spend', 'Spend', P.peach, body);
-}
-
 function listCard(id, label, title, rows, bg, fg, accent, deco) {
   const { w } = STORY;
   let body = deco + mark(fg);
@@ -263,12 +229,6 @@ function listCard(id, label, title, rows, bg, fg, accent, deco) {
     body += text(PAD + indent, y + amt * 0.75, r.value, { size: amt, fill: fg, op: 0.75, weight: 500, ls: -0.01 });
   });
   return card(id, label, bg, body);
-}
-
-function vendorsCard(d) {
-  const deco = blob(930, 1720, 300, P.purple, 5) + star(960, 300, 100, 5, P.ink, -Math.PI / 2, 0.45);
-  const rows = d.vendors.map((v) => ({ name: v.name, value: usd(v.yearly) + d.per }));
-  return listCard('vendors', 'Top vendors', 'Your top AI vendors', rows, P.pink, P.ink, P.ink, deco);
 }
 
 function modelsCard(d) {
@@ -470,27 +430,6 @@ function builtCard(d) {
   return card(id, 'Built', P.ink, body);
 }
 
-function codeCard(d) {
-  const c = d.usage.code;
-  const id = 'code';
-  let body = blob(980, 260, 220, P.purple, 4) + mark() + text(PAD, 420, 'Built with', { size: 92, fill: P.white }) + text(PAD, 530, 'Claude Code', { size: 92, fill: P.white });
-  const big = `+${n0(c.added)}`;
-  body += text(PAD - 6, 530 + fit(big, STORY.w - PAD * 2, 230) * 1.05, big, { size: fit(big, STORY.w - PAD * 2, 230), fill: `url(#ink-${id})`, ls: -0.05 });
-  body += text(PAD, 920, 'lines of code', { size: 64, fill: P.white, op: 0.9, weight: 500, ls: -0.01 });
-  const cells = [
-    [n0(c.commits), 'commits'],
-    [n0(c.prs), 'pull requests'],
-    [n0(c.sessions), 'sessions'],
-    c.acceptRate != null ? [pct(c.acceptRate), 'edits accepted'] : [n0(c.removed), 'lines removed'],
-  ];
-  cells.forEach(([v, k], i) => {
-    const x = PAD + (i % 2) * 460, y = 1180 + Math.floor(i / 2) * 300;
-    body += text(x, y, v, { size: fit(v, 420, 130), fill: P.white, ls: -0.04 });
-    body += small(x, y + 70, k, P.white, 0.75, 44);
-  });
-  return card(id, 'Built', P.ink, body);
-}
-
 function personaCard(d) {
   const p = d.persona;
   const id = 'persona';
@@ -507,7 +446,7 @@ function personaCard(d) {
   return card(id, 'Personality', 'dusk', body);
 }
 
-// The cover on the summary card: ernd's sky, a sun, rings. Colors shift with spend so covers differ.
+// The cover on the summary card: ernd's sky, a sun, rings. Colors shift with token count so covers differ.
 function cover(id, x, y, s, seed = 0) {
   const suns = [P.peach, P.white, P.pink, P.mist];
   const sun = suns[Math.abs(Math.floor(seed)) % suns.length];
@@ -527,15 +466,12 @@ function stats(d) {
   const u = d.usage;
   const out = [];
   if (d.value?.api >= 1) out.push(['At API prices', usd(d.value.api)]);
-  if (d.spend != null) out.push([d.spendIsYtd ? 'AI spend this year' : 'AI spend a year', usd(d.spend)]);
   if (u) out.push(['Tokens', compact(u.tokens.total)]);
   if (u?.cacheHit != null) out.push(['Cache hits', pct(u.cacheHit)]);
-  if (u?.code) out.push(['Lines built', '+' + compact(u.code.added)]);
-  else if (u?.built?.lines) out.push(['Lines written', compact(u.built.lines)]);
+  if (u?.built?.lines) out.push(['Lines written', compact(u.built.lines)]);
   if (u?.streak > 1) out.push(['Longest streak', `${u.streak} days`]);
   if (u?.peak) out.push(['Biggest day', shortDate(u.peak.date)]);
   if (u?.activeDays) out.push(['Days with AI', String(u.activeDays)]);
-  if (d.vendors[0]) out.push(['Top vendor', d.vendors[0].name]);
   return out.slice(0, 6);
 }
 
@@ -544,13 +480,9 @@ function summaryCard(d) {
   const { w } = STORY;
   const s = 600;
   let body = mark() + corner(`${d.year} in AI`);
-  body += cover(id, (w - s) / 2, 180, s, d.spend / 1000);
-  const right = d.models.length
-    ? { title: 'Top models', rows: d.models.map((m) => m.name) }
-    : { title: 'Spend a year', rows: d.vendors.map((v) => usd(v.yearly)) };
-  const left = d.usage?.harnesses?.length
-    ? { title: 'Top harnesses', rows: d.usage.harnesses.map((h) => h.name) }
-    : { title: 'Top vendors', rows: d.vendors.map((v) => v.name) };
+  body += cover(id, (w - s) / 2, 180, s, (d.usage?.tokens?.total || 0) / 1e9);
+  const left = { title: 'Top harnesses', rows: (d.usage?.harnesses || []).map((h) => h.name) };
+  const right = { title: 'Top models', rows: d.models.map((m) => m.name) };
   const cols = [
     { x: PAD, ...left },
     { x: w / 2 + 20, ...right },
@@ -570,7 +502,7 @@ function summaryCard(d) {
     body += text(x, y + 74, v, { size: fit(v, w / 2 - PAD - 60, 80), fill: i === 0 ? P.peach : P.white });
   });
   body += `<rect x="${PAD}" y="1740" width="${w - PAD * 2}" height="2" fill="${P.white}" opacity="0.25"/>`;
-  body += text(PAD, 1820, ERND.short, { size: 38, fill: P.white, op: 0.8, weight: 500, ls: -0.01 });
+  body += text(PAD, 1820, 'ernd.ai', { size: 38, fill: P.white, op: 0.8, weight: 500, ls: -0.01 });
   return card(id, 'Summary', 'dusk', body);
 }
 
@@ -579,7 +511,7 @@ function wideCard(d) {
   const id = 'wide';
   const { w, h } = WIDE;
   const s = 620;
-  let body = cover(id, 120, (h - s) / 2, s, d.spend / 1000);
+  let body = cover(id, 120, (h - s) / 2, s, (d.usage?.tokens?.total || 0) / 1e9);
   const x = 120 + s + 90;
   body += wordmark(x, 120, 40, P.white) + text(w - 110, 158, `${d.year} in AI`, { size: 38, fill: P.white, anchor: 'end', weight: 600, ls: -0.01 });
   const st = stats(d).slice(0, 6);
@@ -589,7 +521,7 @@ function wideCard(d) {
     body += small(cx, cy, k, P.white, 0.65, 32);
     body += text(cx, cy + 74, v, { size: fit(v, 340, 78), fill: i === 0 ? P.peach : P.white });
   });
-  body += text(x, h - 80, ERND.short, { size: 30, fill: P.white, op: 0.75, weight: 500, ls: 0 });
+  body += text(x, h - 80, 'ernd.ai', { size: 30, fill: P.white, op: 0.75, weight: 500, ls: 0 });
   return card(id, 'For X', 'dusk', body, WIDE);
 }
 
@@ -597,16 +529,13 @@ export function cards(d) {
   const u = d.usage;
   const story = [introCard(d)];
   if (d.value?.api >= 1) story.push(valueCard(d));
-  if (d.spend != null) story.push(spendCard(d));
-  if (d.vendors.length) story.push(vendorsCard(d));
   if (u?.tokens?.total) story.push(tokensCard(d));
   if (u?.harnesses?.length) story.push(harnessCard(d));
   if (d.models.length) story.push(modelsCard(d));
   if (u?.cacheHit != null && u.tokens.cached > 0) story.push(cacheCard(d));
   if (u?.peak) story.push(peakCard(d));
   if (u?.hours?.some(Boolean)) story.push(rhythmCard(d));
-  if (u?.code) story.push(codeCard(d));
-  else if (u?.built?.lines) story.push(builtCard(d));
+  if (u?.built?.lines) story.push(builtCard(d));
   if (d.persona) story.push(personaCard(d));
   story.push(summaryCard(d));
   return { story, wide: wideCard(d) };
@@ -627,10 +556,8 @@ export function postText(d) {
   if (u?.tokens?.total) bits.push(`${compact(u.tokens.total)} tokens`);
   if (d.value?.api >= 1) bits.push(`${usd(d.value.api)} at API prices`);
   if (u?.cacheHit != null && u.tokens.cached > 0) bits.push(`${pct(u.cacheHit)} cache hits`);
-  if (u?.code) bits.push(`+${compact(u.code.added)} lines with Claude Code`);
-  else if (u?.built?.lines) bits.push(`${compact(u.built.lines)} lines written`);
+  if (u?.built?.lines) bits.push(`${compact(u.built.lines)} lines written`);
   if (u?.peak) bits.push(`biggest day ${shortDate(u.peak.date)}`);
-  if (!bits.length && d.spend != null) bits.push(`${usd(d.spend)}${d.per} on AI`);
   return `my ${d.year} in AI: ${bits.join(', ')}\n\ntokenswrapped.com`;
 }
 
@@ -775,8 +702,8 @@ show(0);raf=requestAnimationFrame(tick);
 }
 
 // Writes the page to a new temp folder and returns its path. Never overwrites anything.
-export function writeShare(bill, { now = new Date(), dir, usage = null, value = null } = {}) {
-  const d = recapData(bill, { now, usage, value });
+export function writeShare({ usage, value = null, now = new Date(), dir } = {}) {
+  const d = recapData({ usage, value, now });
   const folder = dir || mkdtempSync(join(tmpdir(), 'tokens-wrapped-'));
   const file = join(folder, 'year-in-ai.html');
   writeFileSync(file, page(d), { flag: 'wx' });

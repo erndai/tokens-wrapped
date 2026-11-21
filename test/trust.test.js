@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALLOWED_HOSTS } from '../src/http.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 function files(dir) {
@@ -22,10 +21,10 @@ test('no dependencies at all', () => {
   assert.ok(!pkg.scripts?.preinstall && !pkg.scripts?.install && !pkg.scripts?.postinstall, 'no install scripts');
 });
 
-test('only src/http.js touches the network, with GET to two hosts', () => {
+test('no network code: the only request anywhere is the recap page uploading a card on Post on X', () => {
   const callers = code.filter(({ s }) => /\bfetch\s*\(/.test(s.replace(/\/\/.*$/gm, ''))).map((c) => c.f);
-  // share.js only builds the recap page: its one fetch runs in the browser, uploading the card on "Post on X".
-  assert.deepEqual(callers, ['src/http.js', 'src/share.js']);
+  // share.js builds the recap page; its one fetch runs in the browser, only when "Post on X" is clicked.
+  assert.deepEqual(callers, ['src/share.js']);
   const share = readFileSync(join(root, 'src/share.js'), 'utf8');
   assert.equal((share.match(/\bfetch\(/g) || []).length, 1);
   assert.match(share, /CARD_UPLOAD_URL = 'https:\/\/tokenswrapped\.com\/api\/card'/);
@@ -33,10 +32,6 @@ test('only src/http.js touches the network, with GET to two hosts', () => {
     assert.doesNotMatch(s, /node:(http|https|net|tls|dgram|dns)\b|from '(http|https|net|tls|dgram|dns)'/, f);
     assert.doesNotMatch(s, /XMLHttpRequest|WebSocket|sendBeacon/, f);
   }
-  assert.deepEqual([...ALLOWED_HOSTS].sort(), ['api.anthropic.com', 'api.openai.com']);
-  const http = readFileSync(join(root, 'src/http.js'), 'utf8');
-  assert.match(http, /method: 'GET'/);
-  assert.match(http, /redirect: 'error'/);
 });
 
 test('only the recap page is written to disk, and only share.js opens a browser', () => {
@@ -54,10 +49,4 @@ test('only the recap page is written to disk, and only share.js opens a browser'
   assert.match(readFileSync(join(root, 'src/local/sqlite.js'), 'utf8'), /readOnly: true/);
   const share = readFileSync(join(root, 'src/share.js'), 'utf8');
   assert.equal((share.match(/writeFileSync\(/g) || []).length, 1);
-});
-
-test('keys are never read from argv', async () => {
-  const { parse } = await import('../src/args.js');
-  assert.throws(() => parse(['--openai-key', 'sk-admin-x']), /environment only/);
-  assert.throws(() => parse(['sk-admin-abcdef']), /environment only/);
 });

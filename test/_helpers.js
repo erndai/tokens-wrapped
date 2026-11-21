@@ -1,60 +1,41 @@
-import { readFileSync, mkdtempSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join, dirname } from 'node:path';
 
-const here = dirname(fileURLToPath(import.meta.url));
-
-export const FAKE_OPENAI_KEY = 'sk-admin-FAKEtestKEYdoNotUse0000111122223333';
-export const FAKE_ANTHROPIC_KEY = 'sk-ant-admin01-FAKEtestKEYdoNotUse999988887777';
 export const NOW = new Date('2026-11-20T15:00:00Z');
 
-export function fixture(name) {
-  return JSON.parse(readFileSync(join(here, 'fixtures', name), 'utf8'));
-}
+// An empty home folder: tests never read the real machine's coding agent logs.
+export const EMPTY_HOME = mkdtempSync(join(tmpdir(), 'tw-empty-home-'));
 
-// A fetch that never touches the network. `route(url, init)` returns { status, body, headers } or throws.
-export function fakeFetch(route) {
-  const calls = [];
-  const fn = async (url, init = {}) => {
-    calls.push({ url: String(url), init });
-    const r = await route(new URL(url), init, calls.length);
-    const headers = new Headers(r.headers || {});
-    const body = r.body === undefined ? '' : typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
-    return new Response(body, { status: r.status || 200, headers });
-  };
-  fn.calls = calls;
-  return fn;
-}
-
-// A fetch that hangs until aborted, like a server that never answers.
-export function hangingFetch() {
-  return (url, init = {}) =>
-    new Promise((_, reject) => {
-      init.signal?.addEventListener('abort', () => {
-        const e = new Error('This operation was aborted');
-        e.name = 'AbortError';
-        reject(e);
-      });
-    });
-}
-
+// A stream stand-in that keeps what's written.
 export function sink({ isTTY = false, columns } = {}) {
   const s = { text: '', isTTY, columns, write(chunk) { s.text += chunk; return true; } };
   return s;
 }
 
-export const providerRouter = () => {
-  return (u) => {
-    if (u.hostname === 'api.openai.com') {
-      return { body: u.searchParams.get('page') ? fixture('openai-costs-page2.json') : fixture('openai-costs-page1.json') };
-    }
-    if (u.hostname === 'api.anthropic.com') {
-      return { body: u.searchParams.get('page') ? fixture('anthropic-cost-page2.json') : fixture('anthropic-cost-page1.json') };
-    }
-    throw new Error('unexpected host ' + u.hostname);
-  };
-};
-
-// An empty home folder: tests never read the real machine's coding agent logs.
-export const EMPTY_HOME = mkdtempSync(join(tmpdir(), 'tw-empty-home-'));
+// A home folder with a tiny, made-up Claude Code transcript (two replies, one edit, one typed prompt).
+export function claudeHome(secret = 'SECRET-PROMPT-TEXT') {
+  const home = mkdtempSync(join(tmpdir(), 'tw-home-'));
+  const file = join(home, '.claude', 'projects', '-proj', 'session-1.jsonl');
+  mkdirSync(dirname(file), { recursive: true });
+  const lines = [
+    { type: 'user', timestamp: '2026-03-02T17:00:00Z', sessionId: 's1', cwd: '/p', message: { role: 'user', content: secret } },
+    {
+      type: 'assistant', timestamp: '2026-03-02T17:00:05Z', sessionId: 's1', cwd: '/p', requestId: 'r1',
+      message: { id: 'm1', model: 'claude-opus-5-5', content: [{ type: 'tool_use', name: 'Write', input: { file_path: '/p/a.py', content: 'x\ny\nz' } }],
+        usage: { input_tokens: 100, cache_read_input_tokens: 9000, cache_creation_input_tokens: 400, output_tokens: 500 } },
+    },
+    // The same reply repeated on another line, as Claude Code writes it: must count once.
+    {
+      type: 'assistant', timestamp: '2026-03-02T17:00:05Z', sessionId: 's1', cwd: '/p', requestId: 'r1',
+      message: { id: 'm1', model: 'claude-opus-5-5', content: [{ type: 'text', text: secret }],
+        usage: { input_tokens: 100, cache_read_input_tokens: 9000, cache_creation_input_tokens: 400, output_tokens: 500 } },
+    },
+    {
+      type: 'assistant', timestamp: '2026-03-03T09:00:00Z', sessionId: 's1', cwd: '/p', requestId: 'r2',
+      message: { id: 'm2', model: 'claude-opus-5-5', content: [], usage: { input_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 50 } },
+    },
+  ];
+  writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return home;
+}

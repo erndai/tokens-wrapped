@@ -142,6 +142,5 @@ export function summarizeLocal(tallies, win) {
     built: lines || files ? { lines, files, languages: sorted(exts).slice(0, 5).map(([ext, edits]) => ({ ext, edits })) } : null,
     storedCost: storedCost || null,
     webSearches: webSearches || null,
-    code: null, // the admin-key Claude Code report fills this in team mode
   };
 }
