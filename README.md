@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/banner.png" alt="Your year in AI: tokens, API cost, cache hits, streaks and what your agents built" width="100%"></p>
 
 <p align="center">
-  <a href="https://github.com/provenanceresearch/tokens-wrapped/actions/workflows/ci.yml"><img alt="tests" src="https://github.com/provenanceresearch/tokens-wrapped/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/erndai/tokens-wrapped/actions/workflows/ci.yml"><img alt="tests" src="https://github.com/erndai/tokens-wrapped/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="dependencies: 0" src="https://img.shields.io/badge/dependencies-0-7682d7">
   <a href="SECURITY.md"><img alt="everything stays on your computer" src="https://img.shields.io/badge/data-stays%20on%20your%20computer-6a97e6"></a>
   <img alt="license: MIT" src="https://img.shields.io/badge/license-MIT-9775c6">
@@ -40,10 +40,12 @@ summary, and opens a recap you can tap through and post.
 | What your agents wrote: lines, files, languages, sessions | The agents' edit and write tool calls |
 | Your AI personality, summary, a wide card for X | All of the above |
 
-Supported: Claude Code, Codex, OpenCode. Notes:
+Supported: Claude Code, Codex, Cursor, OpenCode, Kilo Code, Cline, Roo Code, Pi, Gemini CLI, Qwen Code, Copilot CLI,
+Droid, Kimi CLI, Goose and Crush. Notes:
 
 - Claude Code (and Gemini CLI) delete logs after 30 days by default, so the recap starts at your oldest log.
-- Cursor keeps no token counts on your computer, so it shows activity and AI-written lines, not tokens.
+- Cursor keeps no token counts on your computer, so it shows messages and AI-written lines, not tokens. Crush stores
+  cost but not token totals. Amp keeps its history on its servers, so it can't be read locally.
 - "At API prices" is an estimate: it ignores long-context tiers, batch and fast modes.
 
 ## Team mode: org admin keys

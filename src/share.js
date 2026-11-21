@@ -412,7 +412,7 @@ function harnessCard(d) {
     const y = top + i * gap;
     body += text(PAD, y + num * 0.2, String(i + 1), { size: num, fill: P.ink, ls: -0.05 });
     body += text(PAD + ind, y - name * 0.3, h.name, { size: name, fill: P.ink });
-    const detail = h.tokensKnown ? `${compact(h.tokens)} tokens · ${h.days} day${h.days === 1 ? '' : 's'}` : `${n0(h.replies)} replies · ${h.days} days`;
+    const detail = h.tokensKnown ? `${compact(h.tokens)} tokens · ${h.days} day${h.days === 1 ? '' : 's'}` : `${n0(h.replies)} messages · ${h.days} days`;
     body += text(PAD + ind, y + sub * 0.95, detail, { size: sub, fill: P.ink, op: 0.75, weight: 500, ls: -0.01 });
     const bw = (w - PAD * 2 - ind) * (h.tokensKnown ? Math.max(0.02, h.tokens / max) : 0.02);
     body += `<rect x="${PAD + ind}" y="${y + sub * 1.5}" width="${bw.toFixed(0)}" height="${bar}" rx="${bar / 2}" fill="${P.ink}" opacity="0.85"/>`;

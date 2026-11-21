@@ -41,7 +41,7 @@ test('only src/http.js touches the network, with GET to two hosts', () => {
 
 test('only the recap page is written to disk, and only share.js opens a browser', () => {
   // Local readers may only import read functions from fs; nothing but share.js writes or spawns.
-  const READ_ONLY = new Set(['readFileSync', 'readdirSync', 'existsSync', 'statSync', 'createReadStream', 'readFile', 'readdir', 'stat']);
+  const READ_ONLY = new Set(['readFileSync', 'readdirSync', 'existsSync', 'statSync', 'lstatSync', 'realpathSync', 'createReadStream', 'readFile', 'readdir', 'stat']);
   for (const { f, s } of code) {
     for (const m of s.matchAll(/import\s*\{([^}]*)\}\s*from\s*'(?:node:)?fs(?:\/promises)?'/g)) {
       const names = m[1].split(',').map((x) => x.trim().split(/\s+as\s+/)[0]).filter(Boolean);

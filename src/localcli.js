@@ -24,7 +24,7 @@ export function localText(s, value, { bold = (x) => x, dim = (x) => x } = {}) {
   pair(s.cacheHit != null ? `${pct(s.cacheHit)} cache hits` : '', s.streak > 1 ? `${s.streak}-day streak` : '');
   if (s.peak) pair(`Biggest day ${shortDate(s.peak.date)}`, s.busiestHour != null ? `busiest at ${hourLabel(s.busiestHour)}` : '');
   rows.push('');
-  rows.push(`  ${dim('Harnesses')}  ${s.harnesses.map((h) => `${h.name} ${h.tokensKnown ? compact(h.tokens) : `${n0(h.replies)} replies`}`).join(dim(' · '))}`);
+  rows.push(`  ${dim('Harnesses')}  ${s.harnesses.map((h) => `${h.name} ${h.tokensKnown ? compact(h.tokens) : `${n0(h.replies)} messages`}`).join(dim(' · '))}`);
   if (s.models.length) rows.push(`  ${dim('Models')}     ${s.models.slice(0, 3).map((m) => prettyModel(m.name)).join(dim(' · '))}`);
   if (s.built?.lines) {
     const lang = s.built.languages[0] ? `, mostly ${langName(s.built.languages[0].ext)}` : '';

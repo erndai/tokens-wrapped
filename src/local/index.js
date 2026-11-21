@@ -4,9 +4,37 @@
 import * as claude from './claude.js';
 import * as codex from './codex.js';
 import * as opencode from './opencode.js';
+import * as pi from './pi.js';
+import * as gemini from './gemini.js';
+import * as qwen from './qwen.js';
+import * as copilot from './copilot.js';
+import * as droid from './droid.js';
+import * as kimi from './kimi.js';
+import * as cursor from './cursor.js';
+import * as goose from './goose.js';
+import * as crush from './crush.js';
+import * as kilo from './kilo.js';
+import { readers as vscodeAgents } from './vscode-agents.js';
 import { localDay } from './tally.js';
 
-export const READERS = [claude, codex, opencode];
+export const READERS = [claude, codex, cursor, opencode, kilo, ...vscodeAgents, pi, gemini, qwen, copilot, droid, kimi, goose, crush];
+
+// Two readers can report the same harness (Kilo's CLI and its VS Code extension): fold them into one tally.
+export function mergeInto(a, b) {
+  for (const k of Object.keys(a.tokens)) a.tokens[k] += b.tokens[k];
+  for (const k of ['cost', 'replies', 'prompts', 'lines', 'webSearches']) a[k] += b[k];
+  for (const k of ['sessions', 'projects', 'files']) for (const v of b[k]) a[k].add(v);
+  for (const k of ['days', 'dayActivity', 'models', 'tools', 'exts']) for (const [x, v] of b[k]) a[k].set(x, (a[k].get(x) || 0) + v);
+  for (const [m, v] of b.byModel) {
+    const t = a.byModel.get(m) || { input: 0, cached: 0, cacheWrite: 0, cacheWrite1h: 0, output: 0 };
+    for (const k of Object.keys(t)) t[k] += v[k] || 0;
+    a.byModel.set(m, t);
+  }
+  b.hours.forEach((v, i) => (a.hours[i] += v));
+  a.tokensKnown = a.tokensKnown || b.tokensKnown;
+  a.notes.push(...b.notes);
+  return a;
+}
 
 // Jan 1 this year (local time) to now.
 export function localYear(now = new Date()) {
@@ -21,7 +49,9 @@ export async function scanLocal({ home, env = {}, now = new Date(), progress = (
     progress(`Reading ${r.NAME}...`);
     try {
       const t = await r.read({ home, env, win, progress });
-      if (t) tallies.push(t);
+      const same = t && tallies.find((x) => x.id === t.id);
+      if (same) mergeInto(same, t);
+      else if (t) tallies.push(t);
       if (t?.notes?.length) notes.push(...t.notes);
     } catch {
       notes.push(`${r.NAME} could not be read`);

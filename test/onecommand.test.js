@@ -37,7 +37,7 @@ test('one command: asks for both keys hidden, says where they go, then opens the
     assert.match(r.asked[0], /OpenAI admin key \(hidden, Enter to skip\)/);
     assert.match(r.out, /Keys stay on this computer/);
     assert.match(r.out, /api\.openai\.com and api\.anthropic\.com/);
-    assert.match(r.out, /github\.com\/provenanceresearch\/tokens-wrapped/);
+    assert.match(r.out, /github\.com\/erndai\/tokens-wrapped/);
     assert.equal(r.opened.length, 1, 'recap opens without --share');
     assert.deepEqual(readdirSync(r.dir), ['year-in-ai.html']);
     // The key went to OpenAI in the header and nowhere else.
