@@ -57,4 +57,13 @@ export function sampleSummary() {
   };
 }
 
-export const SAMPLE_VALUE = { api: 9840, months: 6, unpricedShare: 0, byHarness: [] };
+export const SAMPLE_VALUE = {
+  api: 9840,
+  months: 6,
+  unpricedShare: 0,
+  byHarness: [
+    { name: 'Claude Code', api: 7420 },
+    { name: 'Codex', api: 2420 },
+    { name: 'Cursor', api: 0 },
+  ],
+};

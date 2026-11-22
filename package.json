@@ -1,6 +1,6 @@
 {
   "name": "tokens-wrapped",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Your year in AI from the logs your coding agents already keep: tokens, API cost, cache hits, streaks, lines written. One command, no keys.",
   "type": "module",
   "bin": {
